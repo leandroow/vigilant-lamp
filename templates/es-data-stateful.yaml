@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.data.name }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "elasticsearch.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "elasticsearch.selectorLabels" . | nindent 8 }}
+    spec:
+      initContainers:
+      - name: init-sysctl
+        image: busybox:1.27.2
+        command:
+        - sysctl
+        - -w
+        - vm.max_map_count=262144
+        securityContext:
+          privileged: true
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "elasticsearch.serviceAccountName" . }}
+      containers:
+        - name: {{ .Values.data.name }}
+          securityContext:
+            privileged: true
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:          
+            {{- range .Values.data.env }}
+          - name: {{ .name }}
+            value: {{ .value }}
+        {{- end }}
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          ports:
+            - name: {{ .Values.data.container.http.name }}
+              containerPort: {{ .Values.data.container.http.port }}
+              protocol: TCP
+            - name: {{ .Values.data.container.transport.name }}
+              containerPort: {{ .Values.data.container.transport.port }}
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.data.service.transport.name }}
+            initialDelaySeconds: 40
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /_cluster/health
+              port: {{ .Values.data.service.http.name }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+        volumeMounts:
+        - name: storage
+          mountPath: /data
+        - name: config
+          mountPath: /user/share/elasticsearch/config/elasticsearch.yml
+          subPath: elasticsearch.yml
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Values.data.configmap.name }}
+  
+  volumeClaimTemplates:
+  - metadata:
+    name: storage
+    annotations:
+      ibm.io/auto-create-bucket: "false"
+      ibm.io/auto-delete-bucket: "false"
+      ibm.io/bucket: {{ .Values.data.configmap.bucket }}
+      ibm.io/secret-name: {{ .Values.data.configmap.secret }}
+      volume.beta.kubernetes.io/storage-class: ibmc-s3fs-standard-perf-regional
+      volume.beta.kubernetes.io/storage-provisioner: ibm.io/ibmc-s3fs
+    spec:
+      accessModes: '[ "ReadWriteOnce" ]'
+      storageClassName: "ibmc-s3fs-standard-perf-cross-region"
+      resources:
+        requests:
+          storage: {{ .Values.data.configmap.storageSize }}

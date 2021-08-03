@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ingest.name }}
+  labels:
+    {{- include "elasticsearch.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.ingest.service.port }}
+      protocol: TCP
+      name: {{ .Values.ingest.service.name }}
+  selector:
+    {{- include "elasticsearch.selectorLabels" . | nindent 4 }}
