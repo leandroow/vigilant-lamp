@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+    name: storage-master
+    annotations:
+      ibm.io/auto-create-bucket: "true"
+      ibm.io/auto-delete-bucket: "false"
+      ibm.io/bucket: {{ .Values.master.volume.bucket  | quote }}
+      ibm.io/secret-name: {{ .Values.data.volume.secret | quote }}
+      volume.beta.kubernetes.io/storage-class: ibmc-s3fs-standard-perf-regional
+      volume.beta.kubernetes.io/storage-provisioner: ibm.io/ibmc-s3fs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: {{ .Values.data.volume.storageSize }}
+  storageClassName: "ibmc-s3fs-standard-perf-cross-region"

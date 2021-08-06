@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ingest.name }}
+  labels:
+    {{- range $k, $v := .Values.ingest.selector }}
+      {{ $k }}: {{ $v }}
+    {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.ingest.service.port }}
+      protocol: TCP
+      name: {{ .Values.ingest.service.name }}
+  selector:
+    {{- range $k, $v := .Values.ingest.selector }}
+      {{ $k }}: {{ $v }}
+    {{- end }}

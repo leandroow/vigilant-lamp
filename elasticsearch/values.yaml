@@ -1,0 +1,222 @@
+# Default values for elasticsearch.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: docker.elastic.co/elasticsearch/elasticsearch
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "7.9.2"
+
+imagePullSecrets: 
+  - name: all-icr-io
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  # capabilities:
+  #   drop:
+  #   - ALL
+  privileged: true
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  port: 80
+  type: ClusterIP
+
+master:
+  name: es-master
+  service:
+    type: ClusterIP
+    port: 9300
+    name: transport1
+  container:
+    port: 9300
+    name: transport1
+  env:
+    CLUSTER_NAME: kpesdb
+    ES_PLUGINS_INSTALL: mapper-size
+    ELASTIC_PASSWORD: changeme
+    ES_JAVA_OPTS: -Xmx2048m -Xms2048m #this was originally 5120, downgraded because of lack of resources on current cluster
+  
+  selector:
+    component: elasticsearch
+    role: master
+  volume:
+    bucket: tsp-elasticsearch-master
+  config:
+    xpack.security.enabled: "true"
+    cluster.name: "kpesdb"
+    node.master: "true"
+    node.data: "false"
+    node.ml: "false"
+    node.ingest: "false"
+    node.name: ${HOSTNAME}
+    node.max_local_storage_nodes: 3
+    network.host: "_site_"
+    path.data: "/data/data/"
+    path.logs: "/data/log"
+    path.repo: "/data/repo"
+    http.cors.enabled: "true"
+    # discovery.zen.ping.unicast.hosts: "elasticsearch-discovery"
+    discovery.seed_hosts: ${HOSTNAME}
+    cluster.initial_master_nodes: ${HOSTNAME}
+    discovery.zen.minimum_master_nodes: 0
+    xpack.license.self_generated.type: "trial"
+    xpack.security.http.ssl.enabled: "false"
+    xpack.security.transport.ssl.enabled: "false"
+    xpack.security.transport.ssl.verification_mode: none
+    search.default_search_timeout: "-1"
+
+data:
+  name: es-data
+  service:
+    transport:
+      type: ClusterIP
+      port: 9300
+      name: transport2
+    http:
+      type: ClusterIP
+      port: 9200
+      name: http2
+  selector:
+    component: elasticsearch
+    role: data
+  env:
+    ES_PATH_CONF: /usr/share/elasticsearch/config
+    ES_PLUGINS_INSTALL: mapper-size
+    ELASTIC_PASSWORD: changeme
+    ES_JAVA_OPTS: -Xmx2048m -Xms2048m
+  container:
+    transport:
+      port: 9300
+      name: transport2
+    http:
+      port: 9200
+      name: http2
+  volume:
+    name: es-config
+    bucket: tsp-elasticsearch
+    secret: cos-write-access
+    storageSize: 1Gi
+  config:
+    xpack.security.enabled: "true"
+    cluster.name: "kpesdb"
+    node.master: "false"
+    node.data: "true"
+    node.ml: "false"
+    node.ingest: "false"
+    node.name: ${HOSTNAME}
+    node.max_local_storage_nodes: 3
+    network.host: "_site_"
+    path.data: "/data/data/"
+    path.logs: "/data/log"
+    path.repo: "/data/repo"
+    http.cors.enabled: "true"
+    discovery.zen.ping.unicast.hosts: "es-master" #this has to be the same as .Value.master.name
+    discovery.zen.minimum_master_nodes: 1
+    xpack.license.self_generated.type: "trial"
+    xpack.security.http.ssl.enabled: "false"
+    xpack.security.transport.ssl.enabled: "false"
+    xpack.security.transport.ssl.verification_mode: none
+    xpack.monitoring.collection.enabled: "true"
+    xpack.notification.email.account.es_account.smtp.auth: "false"
+    xpack.notification.email.account.es_account.smtp.starttls.enable: "false"
+    xpack.notification.email.account.es_account.smtp.starttls.required: "false"
+    xpack.notification.email.account.es_account.smtp.host: "mail.btopenworld.com"
+    xpack.notification.email.account.es_account.smtp.port: "25"
+    search.default_search_timeout: "-1"
+
+ingest:
+  name: es-ingest
+  service:
+    type: ClusterIP
+    port: 9200
+    name: http3
+
+  container:
+    port: 9300
+    name: transport3
+  
+  selector:
+    component: elasticsearch
+    role: ingest
+
+  config:
+    xpack.security.enabled: "true"
+    cluster.name: "kpesdb"
+    node.master: "false"
+    node.data: "false"
+    node.ml: "false"
+    node.ingest: "true"
+    node.name: ${HOSTNAME}
+    node.max_local_storage_nodes: 3
+    network.host: "_site_"
+    path.data: "/data/data/"
+    path.logs: "/data/log"
+    path.repo: "/data/repo"
+    http.cors.enabled: "true"
+    discovery.zen.ping.unicast.hosts: "es-master" #this has to be the same as .Value.master.name
+    discovery.zen.minimum_master_nodes: 1
+    xpack.license.self_generated.type: "trial"
+    xpack.security.http.ssl.enabled: "false"
+    xpack.security.transport.ssl.enabled: "false"
+    xpack.security.transport.ssl.verification_mode: none
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: tsp-sugar-backend-host
+      paths:
+        - path: /
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  limits:
+    cpu: 2
+    # memory: 1024Mi
+  requests:
+    cpu: 200m
+    # memory: 5120Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

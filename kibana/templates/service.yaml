@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kibana.fullname" . }}
+  labels:
+    {{- range $k, $v := .Values.selector }}
+      {{ $k }}: {{ $v }}
+    {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.container.port }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- range $k, $v := .Values.selector }}
+      {{ $k }}: {{ $v }}
+    {{- end }}

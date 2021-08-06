@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.data.name }}-config
+data:
+  elasticsearch.yml: |
+    ---
+   {{- range $k, $v := .Values.data.config }}
+    {{ $k }}: {{ $v }}
+    {{- end }}

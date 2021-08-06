@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.master.name }}
+  labels:
+    {{- range $k, $v := .Values.master.selector }}
+      {{ $k }}: {{ $v }}
+    {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.master.service.port }}
+      protocol: TCP
+      name: {{ .Values.master.service.name }}
+  selector:
+    {{- range $k, $v := .Values.master.selector }}
+      {{ $k }}: {{ $v }}
+    {{- end }}
